@@ -254,7 +254,7 @@ class Tetris:
         return total_height / self.width if self.width > 0 else 0
 
     def evaluate_fitness(self):
-        return 1000*self.fourCleared+500*self.threeCleared+250*self.twoCleared+100*self.oneCleared-10*self.total_height-100*self.holes-0.5*self.average_height
+        return 10000*self.fourCleared+5000*self.threeCleared+500*self.twoCleared+100*self.oneCleared-10*self.total_height-200*self.holes-1*self.average_height
 
     def count_holes(self):
         holes = 0

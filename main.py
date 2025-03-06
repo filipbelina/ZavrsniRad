@@ -73,15 +73,7 @@ def main():
                     key_timer[event.key]["pressed"] = False
                     key_timer[event.key]["time"] = 0  # Reset repeat delay
 
-        ai_move = ai_agent.get_move()
-
-        if ai_move == "left" and game.valid_move(game.current_piece, -1, 0, 0):
-            game.current_piece.x -= 1
-        elif ai_move == "right" and game.valid_move(game.current_piece, 1, 0, 0):
-            game.current_piece.x += 1
-        elif ai_move == "drop":
-            while game.valid_move(game.current_piece, 0, 1, 0):
-                game.current_piece.y += 1
+        ai_move = ai_agent.do_best_move(game)
 
         # Handle held keys
         keys = pygame.key.get_pressed()
