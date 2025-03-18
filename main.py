@@ -65,15 +65,15 @@ def main():
                         game.current_piece.x += 1
                     if event.key == pygame.K_DOWN and game.valid_move(game.current_piece, 0, 1, 0):
                         game.current_piece.y += 1
-                    if event.key == pygame.K_UP and game.valid_move(game.current_piece, 0, 0, 1):
-                        game.current_piece.rotation += 1
+                    if event.key == pygame.K_UP:
+                        new_rotation = (game.current_piece.rotation + 1) % len(game.current_piece.shape)
+                        if game.valid_move(game.current_piece, 0, 0, 1):
+                            game.current_piece.rotation = new_rotation
 
             if event.type == pygame.KEYUP:
                 if event.key in key_timer:
                     key_timer[event.key]["pressed"] = False
                     key_timer[event.key]["time"] = 0  # Reset repeat delay
-
-        ai_move = ai_agent.do_best_move(game)
 
         # Handle held keys
         keys = pygame.key.get_pressed()
@@ -88,8 +88,10 @@ def main():
                             game.current_piece.x += 1
                         if key == pygame.K_DOWN and game.valid_move(game.current_piece, 0, 1, 0):
                             game.current_piece.y += 1
-                        if key == pygame.K_UP and game.valid_move(game.current_piece, 0, 0, 1):
-                            game.current_piece.rotation += 1
+                        if key == pygame.K_UP:
+                            new_rotation = (game.current_piece.rotation + 1) % len(game.current_piece.shape)
+                            if game.valid_move(game.current_piece, 0, 0, 1):
+                                game.current_piece.rotation = new_rotation
                         key_timer[key]["time"] = key_delay  # Reset for continuous movement
 
         # Gravity update (moving piece down)
@@ -102,13 +104,17 @@ def main():
 
         # Draw everything
         draw_score(screen, game.score, 10, 10)
-        game.draw(screen)
+        try:
+            game.draw(screen)
+        except IndexError as e:
+            print(f"IndexError: {e} - Possibly caused by invalid rotation or piece data.")
 
         # Handle game over
         if game.game_over:
             draw_game_over(screen, WIDTH // 2 - 100, HEIGHT // 2 - 30)
-            if event.type == pygame.KEYDOWN:
-                game = Tetris(WIDTH // GRID_SIZE, HEIGHT // GRID_SIZE)
+            for event in pygame.event.get():
+                if event.type == pygame.KEYDOWN:
+                    game = Tetris(WIDTH // GRID_SIZE, HEIGHT // GRID_SIZE)
 
         pygame.display.flip()
         clock.tick(60)
