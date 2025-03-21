@@ -379,14 +379,59 @@ class Tetris:
     #            1*self.bumpiness-
     #            1*self.variance)
 
+    #def evaluate_fitness(self, moves):
+    #    empty_cells_reward = 0
+    #    for row in self.grid:
+    #        empty_cells = row.count(0)
+    #        if empty_cells <= 2:  # Consider rows with 2 or fewer empty cells
+    #            empty_cells_reward += (10 - empty_cells) * 2
+    #
+    #    return -0.51*self.total_height + 12.76*(4*self.fourCleared+3*self.threeCleared+2*self.twoCleared+self.oneCleared) - 0.36*self.holes - 0.18*self.bumpiness + 0.5*moves - 0.3*self.variance+empty_cells_reward
+
     def evaluate_fitness(self, moves):
-        empty_cells_reward = 0
+        # Strongly reward line clears
+
+        def height_penalty(height):
+            if height <= 5:
+                return height * 20  # Penalty of 20 per height unit up to 5
+            elif height <= 10:
+                return 100 + (height - 5) * 80  # Additional penalty of 80 per height unit from 6 to 10
+            else:
+                return 500 + (height - 10) * 200  # Additional penalty of 200 per height unit above 10
+
+        # Calculate the tallest peak
+        tallest_peak = max(self.height - row for row in range(self.height) if any(self.grid[row]))
+
+        # Calculate the height penalty
+        height_penalty_value = height_penalty(tallest_peak)
+
+        line_clear_reward = (self.oneCleared * 100) + \
+                            (self.twoCleared * 300) + \
+                            (self.threeCleared * 500) + \
+                            (self.fourCleared * 800)
+
+        # Reward survival (each move made)
+        survival_reward = moves * 500
+
+        # Penalize height, holes, and bumpiness moderately
+        penalty = (self.total_height * 0.5) + \
+                  (self.holes * 50) + \
+                  (self.bumpiness * 5)
+
+        # Heavily penalize early game overs
+        game_over_penalty = 0
+        if self.game_over:
+            game_over_penalty = 1000 - survival_reward
+
+        empty_cells_penalty = 0
         for row in self.grid:
             empty_cells = row.count(0)
-            if empty_cells <= 2:  # Consider rows with 2 or fewer empty cells
-                empty_cells_reward += (10 - empty_cells) * 2
+            if empty_cells > 0:
+                empty_cells_penalty += empty_cells * 10
 
-        return -0.51*self.total_height + 12.76*(4*self.fourCleared+3*self.threeCleared+2*self.twoCleared+self.oneCleared) - 0.36*self.holes - 0.18*self.bumpiness + 0.5*moves - 0.3*self.variance+empty_cells_reward
+                # Final fitness calculation
+        fitness = line_clear_reward + survival_reward - penalty - game_over_penalty - height_penalty_value - empty_cells_penalty
+        return fitness
 
     def count_holes(self):
         holes = 0
