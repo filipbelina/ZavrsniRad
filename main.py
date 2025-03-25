@@ -1,14 +1,17 @@
+import time
+
 import pygame
 import sys
+import pickle
 from game import Tetris
 from ai_agent import AIAgent
 from renderer import draw_score, draw_game_over
+from train import NeuralNetwork
 
 # Constants
 WIDTH, HEIGHT = 400, 800
 GRID_SIZE = 40
 BLACK = (0, 0, 0)
-
 
 def main():
     # Initialize pygame
@@ -20,7 +23,12 @@ def main():
 
     # Create a Tetris object
     game = Tetris(WIDTH // GRID_SIZE, HEIGHT // GRID_SIZE)
-    ai_agent = AIAgent()
+
+    # Load the trained neural network
+    with open('best_nn.pkl', 'rb') as f:
+        nn = pickle.load(f)
+
+    ai_agent = AIAgent(nn)
 
     fall_time = 0
     fall_speed = 100  # Milliseconds before the piece moves down
@@ -102,6 +110,24 @@ def main():
 
         game.update_trackers()
 
+        # AI decision making
+        legal_moves = ai_agent.get_legal_moves(game)
+        if legal_moves:
+            inputs = ai_agent.prepare_inputs(game, legal_moves)
+            outputs = nn.forward(inputs)
+            move_index = ai_agent.select_move(outputs, legal_moves)
+            time.sleep(1)
+            move = legal_moves[move_index]
+
+            game.current_piece.x += move[0]
+
+            game.current_piece.rotation = (game.current_piece.rotation + move[1]) % len(game.current_piece.shape)
+
+            while game.valid_move(game.current_piece, 0, 1, 0):
+                game.current_piece.y += 1
+
+            game.lock_piece(game.current_piece)
+
         # Draw everything
         draw_score(screen, game.score, 10, 10)
         try:
@@ -118,7 +144,6 @@ def main():
 
         pygame.display.flip()
         clock.tick(60)
-
 
 if __name__ == "__main__":
     main()

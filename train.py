@@ -1,3 +1,5 @@
+import copy
+
 import numpy as np
 import random
 import pickle
@@ -14,9 +16,9 @@ class NeuralNetwork:
         self.hidden_size1 = hidden_size1
         self.hidden_size2 = hidden_size2
         self.output_size = output_size
-        self.weights1 = np.random.randn(hidden_size1, input_size) * 0.01
-        self.weights2 = np.random.randn(hidden_size2, hidden_size1) * 0.01
-        self.weights3 = np.random.randn(output_size, hidden_size2) * 0.01
+        self.weights1 = np.random.randn(hidden_size1, input_size) * 0.2
+        self.weights2 = np.random.randn(hidden_size2, hidden_size1) * 0.2
+        self.weights3 = np.random.randn(output_size, hidden_size2) * 0.2
         self.bias1 = np.zeros((hidden_size1, 1))
         self.bias2 = np.zeros((hidden_size2, 1))
         self.bias3 = np.zeros((output_size, 1))
@@ -42,51 +44,66 @@ def softmax(x):
     e_x = np.exp(x - np.max(x))
     return e_x / e_x.sum()
 
+
 class EvolutionaryTrainer:
-    def __init__(self, population_size=250, generations=150, mutation_rate=0.3):
+    def __init__(self, population_size=500, generations=100, mutation_rate=0.3, max_moves=1000):
         self.population_size = population_size
         self.generations = generations
         self.mutation_rate = mutation_rate
-        self.population = [NeuralNetwork(204, 120, 80, 34) for _ in range(population_size)]
+        self.max_moves = max_moves
+        self.population = [NeuralNetwork(225, 120, 80, 34) for _ in range(population_size)]
+        self.current_game_state = None
 
-    def evaluate_fitness_nn(self, nn):
-        game = Tetris(10, 20)
-        total_fitness = 0
-        moves = 0  # Initialize moves as an integer
-        StatTracker = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        while not game.game_over and moves < 50:
+    def evaluate_fitness_nn(self, nn, game_state=None):
+        if game_state is None:
+            game = Tetris(10, 20)
+        else:
+            game = copy.deepcopy(game_state)
+        moves=0
+
+        for _ in range(3):  # Play 3 moves
+            if game.game_over:
+                break
+
             legal_moves = self.get_legal_moves(game)
+
             if not legal_moves:
                 break
+
             inputs = self.prepare_inputs(game, legal_moves)
+
             outputs = nn.forward(inputs)
 
-            # Select the top N outputs where N is the number of legal moves
-            top_indices = np.argsort(outputs)[-len(legal_moves):]
-            top_outputs = outputs[top_indices]
+            sorted_indices = np.argsort(outputs)[::-1]
 
-            # Apply softmax to the selected outputs to get probabilities
-            probabilities = softmax(top_outputs)
+            # Find the first legal move
+            move_index = None
+            for idx in sorted_indices:
+                if idx < len(legal_moves):
+                    move_index = idx
+                    break
 
-            # Ensure probabilities have the same size as legal_moves
-            if len(probabilities) != len(legal_moves):
-                probabilities = np.ones(len(legal_moves)) / len(legal_moves)
-
-            # Choose a move based on the probabilities
-            move_index = np.random.choice(len(legal_moves), p=probabilities)
+            # If no legal move is found, select the closest legal move
+            if move_index is None:
+                move_index = sorted_indices[0]
             move = legal_moves[move_index]
 
             game.current_piece.x += move[0]
+
             game.current_piece.rotation = (game.current_piece.rotation + move[1]) % len(game.current_piece.shape)
+
             while game.valid_move(game.current_piece, 0, 1, 0):
                 game.current_piece.y += 1
-            game.lock_piece(game.current_piece)
+
+            game.lock_piece(game.current_piece)  # odradi lock peace metodu.
+
             game.update_trackers()
+
             moves += 1
-            total_fitness += game.evaluate_fitness(moves)
-            StatTracker = [game.oneCleared, game.twoCleared, game.threeCleared, game.fourCleared, game.holes,
-                           game.total_height, game.average_height, game.bumpiness, game.variance, moves]
-        return total_fitness, game.binary_grid, StatTracker
+
+            # total_fitness += game.evaluate_fitness(moves)
+
+        return game.evaluate_fitness(moves), game
 
     def get_legal_moves(self, game):
         piece = game.current_piece
@@ -100,89 +117,94 @@ class EvolutionaryTrainer:
     def prepare_inputs(self, game, moves):
         binary_grid = np.array(game.binary_grid)
 
-        # Find the highest row with a 1
-        non_empty_rows = [i for i, row in enumerate(binary_grid) if any(row)]
-        if non_empty_rows:
-            highest_row = max(non_empty_rows)
-            start_row = max(0, highest_row - 16)
-            end_row = highest_row + 1
-        else:
-            start_row = max(0, len(binary_grid) - 17)
-            end_row = len(binary_grid)
+        top_rows = binary_grid.flatten()
 
-        # Extract the top 10 used rows or the bottom 10 rows
-        top_rows = binary_grid[start_row:end_row].flatten()
-
-        features = [game.average_height, game.total_height, game.holes, game.oneCleared, game.twoCleared,
-                    game.threeCleared, game.fourCleared, game.bumpiness,game.variance]
+        features = [game.average_height, game.total_height]
 
         # Add the 5x5 array of the first rotation of the current piece
         first_rotation = np.array(game.current_piece.shape[0]).flatten()
         features.extend(first_rotation)
 
-        return np.concatenate([top_rows, features])
+        return np.concatenate([top_rows, first_rotation])
 
-    def train(self):
+    def softmax(self, x):
+        e_x = np.exp(x - np.max(x))
+        return e_x / e_x.sum()
+
+    def train(self, start_move=0):
         no_improvement_generations = 0
         best_fitness = -float('inf')
+        moves_made = start_move
 
-        for generation in range(self.generations):
-            fitness_scores_and_grids_trackers = [self.evaluate_fitness_nn(nn) for nn in self.population]
-            fitness_scores = [score for score, _, _ in fitness_scores_and_grids_trackers]
-            grids = [grid for _, grid, _ in fitness_scores_and_grids_trackers]
-            trackers = [tracker for _, _, tracker in fitness_scores_and_grids_trackers]
+        if start_move > 0:
+            # Load the saved game state
+            with open('saved_game.pkl', 'rb') as f:
+                self.current_game_state = pickle.load(f)
+        else:
+            self.current_game_state = None
+
+        while moves_made < self.max_moves:
+            fitness_scores_and_games = [self.evaluate_fitness_nn(nn, self.current_game_state) for nn in self.population]
+
+            fitness_scores = [score for score, _ in fitness_scores_and_games]
+
+            games = [game for _, game in fitness_scores_and_games]
 
             sorted_population = [nn for _, nn in
                                  sorted(zip(fitness_scores, self.population), key=lambda x: x[0], reverse=True)]
 
             # Elitism: Keep the top 10% of the population
             elite_count = max(1, self.population_size // 10)
+
             new_population = sorted_population[:elite_count]
 
             # Crossover: Create children from the top 50% of the population
             for _ in range(self.population_size - elite_count):
                 parent1, parent2 = random.sample(sorted_population[:self.population_size // 2], 2)
+
                 child = self.crossover(parent1, parent2)
+
                 child.mutate(self.mutation_rate)
+
                 new_population.append(child)
 
             self.population = new_population
+
             current_best_fitness = max(fitness_scores)
-            print(f'Generation {generation + 1}, Best Fitness: {current_best_fitness}')
 
-            # Render the grid for the best neural network
-            best_grid = grids[fitness_scores.index(current_best_fitness)]
-            game = Tetris(10, 20)
-            game.binary_grid = best_grid
-            game.render()
+            best_game = games[fitness_scores.index(current_best_fitness)]
 
-            best_tracker = trackers[fitness_scores.index(current_best_fitness)]
-            print(f'One Cleared: {best_tracker[0]}, Two Cleared: {best_tracker[1]}'
-                  f', Three Cleared: {best_tracker[2]}, Four Cleared: {best_tracker[3]},'
-                  f' Holes: {best_tracker[4]}, Total Height: {best_tracker[5]},'
-                  f' Average Height: {best_tracker[6]} Bumpiness: {best_tracker[7]},'
-                  f' Variance: {best_tracker[8]} Moves: {best_tracker[9]}')
+            # Save the best game state
+            with open('saved_game.pkl', 'wb') as f:
+                pickle.dump(best_game, f)
 
-            # Check for improvement
+            best_game.render()
+
+            self.current_game_state = best_game
+
+            print(f'Best Fitness after {moves_made + 3} moves: {current_best_fitness}')
+
+            moves_made += 3
+
             if current_best_fitness > best_fitness:
                 best_fitness = current_best_fitness
                 no_improvement_generations = 0
             else:
                 no_improvement_generations += 1
 
-            # Early stopping if no improvement over 20 generations
-            if no_improvement_generations >= 150:
-                print('No improvement for 20 generations, stopping early.')
+            if no_improvement_generations >= 20:
+                print('No improvement for 5 generations, stopping early.')
                 break
 
         best_nn = self.population[0]
+
         with open('best_nn.pkl', 'wb') as f:
             pickle.dump(best_nn, f)
+
         print('Training complete, best model saved.')
 
     def crossover(self, parent1, parent2):
         child = NeuralNetwork(parent1.input_size, parent1.hidden_size1, parent1.hidden_size2, parent1.output_size)
-        # Crossover weights and biases
         child.weights1 = np.where(np.random.rand(*parent1.weights1.shape) < 0.5, parent1.weights1, parent2.weights1)
         child.weights2 = np.where(np.random.rand(*parent1.weights2.shape) < 0.5, parent1.weights2, parent2.weights2)
         child.weights3 = np.where(np.random.rand(*parent1.weights3.shape) < 0.5, parent1.weights3, parent2.weights3)

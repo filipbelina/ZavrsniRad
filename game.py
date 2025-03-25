@@ -370,14 +370,9 @@ class Tetris:
     #    return (10*self.fourCleared+
     #            5*self.threeCleared+
     #            4*self.twoCleared+
-    #            10*self.oneCleared+
-    #            10*self.totalRowFullness-
+    #            10*self.oneCleared-
     #            10*self.total_height-
-    #            30*self.holes-
-    #            1*self.average_height+
-    #            1*moves-
-    #            1*self.bumpiness-
-    #            1*self.variance)
+    #            30*self.holes)
 
     #def evaluate_fitness(self, moves):
     #    empty_cells_reward = 0
@@ -509,34 +504,39 @@ class Tetris:
     def clear_lines(self):
         """Removes full lines and shifts everything down"""
         lines_cleared = 0
-        new_grid = [row for row in self.grid if any(cell == 0 for cell in row)]  # Keep non-full rows
+        new_grid = [row for row in self.grid if any(cell == 0 for cell in row)]
         new_binary_grid = [row for row in self.binary_grid if any(cell == 0 for cell in row)]
 
         # Calculate number of lines cleared
         lines_cleared = self.height - len(new_grid)
+        lines_cleared_binary = self.height - len(new_binary_grid)
+        if(lines_cleared > 0):
+            print(f"Lines cleared: {lines_cleared}")
 
         # Add new empty rows at the top to keep grid size consistent
         while len(new_grid) < self.height:
             new_grid.insert(0, [0] * self.width)
+        while len(new_binary_grid) < self.height:
             new_binary_grid.insert(0, [0] * self.width)
-
         self.grid = new_grid
         self.binary_grid = new_binary_grid
-        return lines_cleared
+        #if(lines_cleared_binary > 0):
+            #print(f"Lines cleared: {lines_cleared}")
+        return lines_cleared_binary
 
     def lock_piece(self, piece):
         """Locks the current piece in place and spawns a new one"""
         for i in range(5):
             for j in range(5):
-                if piece.shape[piece.rotation][i][j] == 1:  # Use 1 instead of 'O'
+                if piece.shape[piece.rotation][i][j] == 1:
                     grid_x = piece.x + j
                     grid_y = piece.y + i
                     if 0 <= grid_x < self.width and 0 <= grid_y < self.height:
-                        self.grid[grid_y][grid_x] = piece.color  # Assign color instead of 1
+                        self.grid[grid_y][grid_x] = piece.color
                         self.binary_grid[grid_y][grid_x] = 1
 
-        # Clear lines and update score
-        lines_cleared = self.clear_lines()
+        lines_cleared = self.clear_lines()  # Clear lines and get the number of lines cleared
+
         if lines_cleared == 1:
             self.score += 100
             self.oneCleared += 1
@@ -558,6 +558,26 @@ class Tetris:
             self.game_over = True
 
         return lines_cleared
+
+    def clear_lines(self):
+        """Removes full lines and shifts everything down"""
+        lines_cleared = 0
+        new_grid = [row for row in self.grid if any(cell == 0 for cell in row)]
+        new_binary_grid = [row for row in self.binary_grid if any(cell == 0 for cell in row)]
+
+        # Calculate number of lines cleared
+        lines_cleared = self.height - len(new_grid)
+        lines_cleared_binary = self.height - len(new_binary_grid)
+
+        # Add new empty rows at the top to keep grid size consistent
+        while len(new_grid) < self.height:
+            new_grid.insert(0, [0] * self.width)
+        while len(new_binary_grid) < self.height:
+            new_binary_grid.insert(0, [0] * self.width)
+        self.grid = new_grid
+        self.binary_grid = new_binary_grid
+
+        return lines_cleared_binary
 
     def update(self):
         if not self.game_over:
