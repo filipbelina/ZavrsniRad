@@ -139,6 +139,7 @@ class EvolutionaryTrainer:
         no_improvement_generations = 0
         best_fitness = -float('inf')
         moves_made = start_move
+        best_games_array = []
 
         if start_move > 0:
             # Load the saved game state
@@ -148,7 +149,7 @@ class EvolutionaryTrainer:
             self.current_game_state = None
 
         while moves_made < self.max_moves:
-            for i in range(20):
+            for i in range(30):
                 fitness_scores_and_games = [self.evaluate_fitness_nn(nn, self.current_game_state) for nn in self.population]
 
                 fitness_scores = [score for score, _ in fitness_scores_and_games]
