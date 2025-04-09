@@ -5,7 +5,6 @@ import random
 import pickle
 from game import Tetris
 
-
 def softmax(x):
     e_x = np.exp(x - np.max(x))
     return e_x / e_x.sum()
@@ -46,13 +45,20 @@ def softmax(x):
 
 
 class EvolutionaryTrainer:
-    def __init__(self, population_size=500, generations=100, mutation_rate=0.3, max_moves=1000):
+    def __init__(self, population_size=100, generations=100, mutation_rate=0.3, max_moves=100):
         self.population_size = population_size
         self.generations = generations
         self.mutation_rate = mutation_rate
         self.max_moves = max_moves
-        self.population = [NeuralNetwork(225, 120, 80, 34) for _ in range(population_size)]
+        self.population = [NeuralNetwork(232, 120, 80, 34) for _ in range(population_size)]
         self.current_game_state = None
+
+    def evaluate_fitness_all_games(self, nn, game_states):
+        total_fitness = 0
+        for game_state in game_states:
+            fitness, _ = self.evaluate_fitness_nn(nn, game_state)
+            total_fitness += fitness
+        return total_fitness / len(game_states)
 
     def evaluate_fitness_nn(self, nn, game_state=None):
         if game_state is None:
@@ -61,7 +67,7 @@ class EvolutionaryTrainer:
             game = copy.deepcopy(game_state)
         moves=0
 
-        for _ in range(3):  # Play 3 moves
+        for _ in range(2):  # Play 3 moves
             if game.game_over:
                 break
 
@@ -75,17 +81,15 @@ class EvolutionaryTrainer:
             outputs = nn.forward(inputs)
 
             sorted_indices = np.argsort(outputs)[::-1]
-
-            # Find the first legal move
             move_index = None
             for idx in sorted_indices:
                 if idx < len(legal_moves):
                     move_index = idx
                     break
-
-            # If no legal move is found, select the closest legal move
             if move_index is None:
                 move_index = sorted_indices[0]
+
+
             move = legal_moves[move_index]
 
             game.current_piece.x += move[0]
@@ -123,9 +127,9 @@ class EvolutionaryTrainer:
 
         # Add the 5x5 array of the first rotation of the current piece
         first_rotation = np.array(game.current_piece.shape[0]).flatten()
-        features.extend(first_rotation)
+        features.extend([game.total_height,game.average_height,game.holes,game.bumpiness,game.totalRowFullness])
 
-        return np.concatenate([top_rows, first_rotation])
+        return np.concatenate([top_rows, first_rotation, features])
 
     def softmax(self, x):
         e_x = np.exp(x - np.max(x))
@@ -144,33 +148,34 @@ class EvolutionaryTrainer:
             self.current_game_state = None
 
         while moves_made < self.max_moves:
-            fitness_scores_and_games = [self.evaluate_fitness_nn(nn, self.current_game_state) for nn in self.population]
+            for i in range(20):
+                fitness_scores_and_games = [self.evaluate_fitness_nn(nn, self.current_game_state) for nn in self.population]
 
-            fitness_scores = [score for score, _ in fitness_scores_and_games]
+                fitness_scores = [score for score, _ in fitness_scores_and_games]
 
-            games = [game for _, game in fitness_scores_and_games]
+                games = [game for _, game in fitness_scores_and_games]
 
-            sorted_population = [nn for _, nn in
-                                 sorted(zip(fitness_scores, self.population), key=lambda x: x[0], reverse=True)]
+                sorted_population = [nn for _, nn in
+                                     sorted(zip(fitness_scores, self.population), key=lambda x: x[0], reverse=True)]
 
-            # Elitism: Keep the top 10% of the population
-            elite_count = max(1, self.population_size // 10)
+                # Elitism: Keep the top 10% of the population
+                elite_count = max(1, self.population_size // 10)
 
-            new_population = sorted_population[:elite_count]
+                new_population = sorted_population[:elite_count]
 
-            # Crossover: Create children from the top 50% of the population
-            for _ in range(self.population_size - elite_count):
-                parent1, parent2 = random.sample(sorted_population[:self.population_size // 2], 2)
+                # Crossover: Create children from the top 50% of the population
+                for _ in range(self.population_size - elite_count):
+                    parent1, parent2 = random.sample(sorted_population[:self.population_size // 2], 2)
 
-                child = self.crossover(parent1, parent2)
+                    child = self.crossover(parent1, parent2)
 
-                child.mutate(self.mutation_rate)
+                    child.mutate(self.mutation_rate)
 
-                new_population.append(child)
+                    new_population.append(child)
 
-            self.population = new_population
+                self.population = new_population
 
-            current_best_fitness = max(fitness_scores)
+                current_best_fitness = max(fitness_scores)
 
             best_game = games[fitness_scores.index(current_best_fitness)]
 
@@ -205,12 +210,13 @@ class EvolutionaryTrainer:
 
     def crossover(self, parent1, parent2):
         child = NeuralNetwork(parent1.input_size, parent1.hidden_size1, parent1.hidden_size2, parent1.output_size)
-        child.weights1 = np.where(np.random.rand(*parent1.weights1.shape) < 0.5, parent1.weights1, parent2.weights1)
-        child.weights2 = np.where(np.random.rand(*parent1.weights2.shape) < 0.5, parent1.weights2, parent2.weights2)
-        child.weights3 = np.where(np.random.rand(*parent1.weights3.shape) < 0.5, parent1.weights3, parent2.weights3)
-        child.bias1 = np.where(np.random.rand(*parent1.bias1.shape) < 0.5, parent1.bias1, parent2.bias1)
-        child.bias2 = np.where(np.random.rand(*parent1.bias2.shape) < 0.5, parent1.bias2, parent2.bias2)
-        child.bias3 = np.where(np.random.rand(*parent1.bias3.shape) < 0.5, parent1.bias3, parent2.bias3)
+        alpha = np.random.rand()
+        child.weights1 = alpha * parent1.weights1 + (1 - alpha) * parent2.weights1
+        child.weights2 = alpha * parent1.weights2 + (1 - alpha) * parent2.weights2
+        child.weights3 = alpha * parent1.weights3 + (1 - alpha) * parent2.weights3
+        child.bias1 = alpha * parent1.bias1 + (1 - alpha) * parent2.bias1
+        child.bias2 = alpha * parent1.bias2 + (1 - alpha) * parent2.bias2
+        child.bias3 = alpha * parent1.bias3 + (1 - alpha) * parent2.bias3
         return child
 
 

@@ -20,9 +20,9 @@ class AIAgent:
 
         # Add the 5x5 array of the first rotation of the current piece
         first_rotation = np.array(game.current_piece.shape[0]).flatten()
-        features.extend(first_rotation)
+        features.extend([game.total_height, game.average_height, game.holes, game.bumpiness, game.totalRowFullness])
 
-        return np.concatenate([top_rows, first_rotation])
+        return np.concatenate([top_rows, first_rotation, features])
 
     def get_legal_moves(self, game):
         """Get all legal moves for the current piece"""
@@ -38,15 +38,12 @@ class AIAgent:
         return legal_moves
 
     def select_move(self, outputs, legal_moves):
-
         sorted_indices = np.argsort(outputs)[::-1]
-        # Find the first legal move
         move_index = None
         for idx in sorted_indices:
             if idx < len(legal_moves):
                 move_index = idx
                 break
-        # If no legal move is found, select the closest legal move
         if move_index is None:
             move_index = sorted_indices[0]
         return move_index

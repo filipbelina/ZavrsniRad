@@ -270,7 +270,7 @@ class Tetromino:
 
 
 class Tetris:
-    def __init__(self, width, height, seed=1):
+    def __init__(self, width, height, seed=3):
         random.seed(seed)
         np.random.seed(seed)
         self.width = width
