@@ -6,7 +6,7 @@ import pickle
 from game import Tetris
 from ai_agent import AIAgent
 from renderer import draw_score, draw_game_over
-from train import NeuralNetwork
+from neuralNetwork import NeuralNetwork
 
 # Constants
 WIDTH, HEIGHT = 400, 800

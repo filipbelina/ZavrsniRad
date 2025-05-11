@@ -48,14 +48,14 @@ class AIAgent:
             move_index = sorted_indices[0]
         return move_index
 
-    def find_best_move(self, game):
-        legal_moves = self.get_legal_moves(game)
-        if not legal_moves:
-            return None
-        inputs = self.prepare_inputs(game, legal_moves)
-        outputs = self.nn.forward(inputs)
-        move_index = self.select_move(outputs, legal_moves)
-        return legal_moves[move_index]
+    #def find_best_move(self, game):
+    #    legal_moves = self.get_legal_moves(game)
+    #    if not legal_moves:
+    #        return None
+    #    inputs = self.prepare_inputs(game, legal_moves)
+    #    outputs = self.nn.forward(inputs)
+    #    move_index = self.select_move(outputs, legal_moves)
+    #    return legal_moves[move_index]
 
     def do_best_move(self, game):
         best_move = self.find_best_move(game)
