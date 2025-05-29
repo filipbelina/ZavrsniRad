@@ -4,6 +4,7 @@ import random
 import numpy as np
 
 from game import Tetris
+from runAiSimulation import run_ai_simulation
 
 
 def train_multi_move(trainer, start_move=0):
@@ -56,6 +57,9 @@ def train_multi_move(trainer, start_move=0):
     # Save the best NN after training
     with open('best_nn.pkl', 'wb') as f:
         pickle.dump(best_nn, f)
+
+    run_ai_simulation(best_nn, trainer)
+
     print('Training complete, best model saved.')
 
 def multi_move_evaluate_fitness_nn(trainer, nn, game_state=None):
@@ -94,6 +98,9 @@ def multi_move_evaluate_fitness_nn(trainer, nn, game_state=None):
         game.lock_piece(game.current_piece)  # odradi lock peace metodu.
         game.update_trackers()
         moves += 1
+
+    if game.game_over:
+        run_ai_simulation(nn, trainer)
 
     if trainer.fitness_function == 1:
         return game.evaluate_fitness1(moves), game

@@ -4,7 +4,7 @@ from runAiSimulation import run_ai_simulation
 from Trainer import EvolutionaryTrainer
 from trainerMultiMove import train_multi_move
 
-trainer = EvolutionaryTrainer(800, 50, 0.5, 3, 4)
+trainer = EvolutionaryTrainer(400, 50, 0.5, 3, 4)
 
 
 def run_training():

@@ -3,6 +3,8 @@ import random
 import numpy as np
 
 from game import Tetris
+from runAiSimulation import run_ai_simulation
+
 
 def train_full_run(trainer):
 
@@ -41,6 +43,8 @@ def train_full_run(trainer):
         trainer.population = new_population
 
     best_nn = trainer.population[0]
+
+    run_ai_simulation(best_nn, trainer)
 
     with open('best_nn.pkl', 'wb') as f:
         pickle.dump(best_nn, f)
