@@ -245,10 +245,10 @@ class Tetromino:
         self.y = y
         self.shape = shape
         self.index = SHAPES.index(shape)
-        self.color = self.determineColour()
+        self.color = self.determine_color()
         self.rotation = 0
 
-    def determineColour(self):
+    def determine_color(self):
         if self.shape == SHAPES[0]:
             return RED
         elif self.shape == SHAPES[1]:
@@ -416,11 +416,11 @@ class Tetris:
                             (self.fourCleared * 800)
 
         # Reward survival (each move made)
-        survival_reward = moves * 500
+        survival_reward = moves * 50
 
         # Penalize height, holes, and bumpiness moderately
         penalty = (self.total_height * 0.5) + \
-                  (self.holes * 50) + \
+                  (self.holes * 10) + \
                   (self.bumpiness * 5)
 
         # Heavily penalize early game overs
@@ -428,14 +428,14 @@ class Tetris:
         if self.game_over:
             game_over_penalty = 1000 - survival_reward
 
-        empty_cells_penalty = 0
+        empty_cells_reward = 0
         for row in self.grid:
             empty_cells = row.count(0)
-            if empty_cells > 0:
-                empty_cells_penalty += empty_cells * 10
+            if empty_cells <= 2:
+                empty_cells_reward += (10 - empty_cells) * 100
 
                 # Final fitness calculation
-        fitness = line_clear_reward + survival_reward - penalty - game_over_penalty - height_penalty_value - empty_cells_penalty
+        fitness = line_clear_reward + survival_reward - penalty - game_over_penalty - height_penalty_value - empty_cells_reward
         return fitness
 
     def count_holes(self):

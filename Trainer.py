@@ -10,7 +10,7 @@ class EvolutionaryTrainer:
         self.fitness_function = fitness_function
         self.training_algorithm = training_algorithm
         if self.training_algorithm == 1 or self.training_algorithm == 2:
-            self.population = [NeuralNetwork(232, 120, 80, 34) for _ in range(population_size)]
+            self.population = [NeuralNetwork(230, 120, 80, 34) for _ in range(population_size)]
         else:
             self.population = [NeuralNetwork(11, 5, 3, 34) for _ in range(population_size)]
         self.current_game_state = None
@@ -32,7 +32,7 @@ class EvolutionaryTrainer:
         features = [game.average_height, game.total_height]
 
         first_rotation = np.array(game.current_piece.shape[0]).flatten()
-        features.extend([game.total_height,game.average_height,game.holes,game.bumpiness,game.totalRowFullness])
+        features.extend([game.holes,game.bumpiness,game.totalRowFullness])
 
         return np.concatenate([top_rows, first_rotation, features])
 
