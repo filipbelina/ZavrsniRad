@@ -1,31 +1,33 @@
 import numpy as np
 
 class NeuralNetwork:
-    def __init__(self, input_size, hidden_size1, hidden_size2, output_size=34):
+    def __init__(self, input_size, hidden_size1, hidden_size2, output_size=1):
         self.input_size = input_size
         self.hidden_size1 = hidden_size1
         self.hidden_size2 = hidden_size2
         self.output_size = output_size
-        self.weights1 = np.random.randn(hidden_size1, input_size) * 0.2
-        self.weights2 = np.random.randn(hidden_size2, hidden_size1) * 0.2
-        self.weights3 = np.random.randn(output_size, hidden_size2) * 0.2
+        self.weights1 = np.random.randn(hidden_size1, input_size) * np.sqrt(1 / input_size)
+        self.weights2 = np.random.randn(hidden_size2, hidden_size1) * np.sqrt(1 / hidden_size1)
+        self.weights3 = np.random.randn(output_size, hidden_size2) * np.sqrt(1 / hidden_size2)
         self.bias1 = np.zeros((hidden_size1, 1))
         self.bias2 = np.zeros((hidden_size2, 1))
         self.bias3 = np.zeros((output_size, 1))
 
     def forward(self, x):
-        x = np.array(x).reshape(-1, 1)
-        self.z1 = np.dot(self.weights1, x) + self.bias1
-        self.a1 = np.tanh(self.z1)
-        self.z2 = np.dot(self.weights2, self.a1) + self.bias2
-        self.a2 = np.tanh(self.z2)
-        self.z3 = np.dot(self.weights3, self.a2) + self.bias3
-        return self.z3.flatten()
+        x = np.asarray(x, dtype=np.float32).reshape(-1, 1)
+        a1 = np.tanh(self.weights1 @ x + self.bias1)
+        a2 = np.tanh(self.weights2 @ a1 + self.bias2)
+        z3 = self.weights3 @ a2 + self.bias3
+        return z3.flatten()
 
     def mutate(self, rate=0.3):
-        self.weights1 += np.random.randn(*self.weights1.shape) * rate
-        self.weights2 += np.random.randn(*self.weights2.shape) * rate
-        self.weights3 += np.random.randn(*self.weights3.shape) * rate
-        self.bias1 += np.random.randn(*self.bias1.shape) * rate
-        self.bias2 += np.random.randn(*self.bias2.shape) * rate
-        self.bias3 += np.random.randn(*self.bias3.shape) * rate
+        def nudge(w, s):
+            layer_std = np.std(w)
+            return w + np.random.randn(*w.shape) * s * max(layer_std, 1e-3)
+
+        self.weights1 = nudge(self.weights1, rate)
+        self.weights2 = nudge(self.weights2, rate)
+        self.weights3 = nudge(self.weights3, rate)
+        self.bias1    = nudge(self.bias1, rate)
+        self.bias2    = nudge(self.bias2, rate)
+        self.bias3    = nudge(self.bias3, rate)

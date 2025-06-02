@@ -2,7 +2,7 @@ from neuralNetwork import NeuralNetwork
 import numpy as np
 
 class EvolutionaryTrainer:
-    def __init__(self, population_size=10000, generations=1000, mutation_rate=0.3, fitness_function=1, training_algorithm=1):
+    def __init__(self, population_size=100, generations=100, mutation_rate=0.3, fitness_function=3, training_algorithm=1):
         self.population_size = population_size
         self.generations = generations
         self.mutation_rate = mutation_rate
@@ -10,10 +10,11 @@ class EvolutionaryTrainer:
         self.fitness_function = fitness_function
         self.training_algorithm = training_algorithm
         if self.training_algorithm == 1 or self.training_algorithm == 2:
-            self.population = [NeuralNetwork(230, 120, 80, 34) for _ in range(population_size)]
+            self.population = [NeuralNetwork(230, 120, 80, 1) for _ in range(population_size)]
         else:
-            self.population = [NeuralNetwork(11, 5, 3, 34) for _ in range(population_size)]
+            self.population = [NeuralNetwork(11, 5, 3, 1) for _ in range(population_size)]
         self.current_game_state = None
+        self.best_neural_network = None
 
     def get_legal_moves(self, game):
         piece = game.current_piece
@@ -42,11 +43,14 @@ class EvolutionaryTrainer:
 
     def crossover(self, parent1, parent2):
         child = NeuralNetwork(parent1.input_size, parent1.hidden_size1, parent1.hidden_size2, parent1.output_size)
-        alpha = np.random.rand()
-        child.weights1 = alpha * parent1.weights1 + (1 - alpha) * parent2.weights1
-        child.weights2 = alpha * parent1.weights2 + (1 - alpha) * parent2.weights2
-        child.weights3 = alpha * parent1.weights3 + (1 - alpha) * parent2.weights3
-        child.bias1 = alpha * parent1.bias1 + (1 - alpha) * parent2.bias1
-        child.bias2 = alpha * parent1.bias2 + (1 - alpha) * parent2.bias2
-        child.bias3 = alpha * parent1.bias3 + (1 - alpha) * parent2.bias3
+        def blend(a, b):
+            alpha = np.random.rand(*a.shape)
+            return alpha * a + (1 - alpha) * b
+
+        child.weights1 = blend(parent1.weights1, parent2.weights1)
+        child.weights2 = blend(parent1.weights2, parent2.weights2)
+        child.weights3 = blend(parent1.weights3, parent2.weights3)
+        child.bias1    = blend(parent1.bias1,  parent2.bias1)
+        child.bias2    = blend(parent1.bias2,  parent2.bias2)
+        child.bias3    = blend(parent1.bias3,  parent2.bias3)
         return child

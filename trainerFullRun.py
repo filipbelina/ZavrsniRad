@@ -1,3 +1,4 @@
+import copy
 import pickle
 import random
 import numpy as np
@@ -9,8 +10,11 @@ from runAiSimulation import run_ai_simulation
 def train_full_run(trainer):
 
     trainer.current_game_state = None
+    generation_stats = []
 
     for i in range(trainer.generations):
+        print("Generation {}".format(i))
+
         fitness_scores_and_games = [fullRunEvaluateFitness(trainer, nn) for nn in trainer.population]
 
         fitness_scores = [score for score, _ in fitness_scores_and_games]
@@ -20,6 +24,7 @@ def train_full_run(trainer):
         best_game = games[best_game_index]
 
         best_game.render()
+        best_game.print_stats()
         print(best_game)
 
         sorted_population = [nn for _, nn in
@@ -42,62 +47,67 @@ def train_full_run(trainer):
 
         trainer.population = new_population
 
-    best_nn = trainer.population[0]
+        if i % 2 == 0:
+            trainer.best_neural_network = trainer.population[0]
+            with open(f'best_per_gen/best_nn_gen_{i}.pkl', 'wb') as f:
+                pickle.dump(trainer.best_neural_network, f)
+            print(f'Best model saved for generation {i}.')
 
-    run_ai_simulation(best_nn, trainer)
+        best_fitness = fitness_scores[best_game_index]
+        best_score = best_game.score
+        generation_stats.append(f"Generation: {i}, Fitness: {best_fitness}, Score: {best_score}")
+
+    trainer.best_neural_network = trainer.population[0]
 
     with open('best_nn.pkl', 'wb') as f:
-        pickle.dump(best_nn, f)
+        pickle.dump(trainer.best_neural_network, f)
+
+    with open('generation_stats.txt', 'w') as f:
+        f.write("\n".join(generation_stats))
+    print(generation_stats)
 
     print('Training complete, best model saved.')
+
+    run_ai_simulation(trainer)
 
 def fullRunEvaluateFitness(trainer, nn):
     game = Tetris(10, 20)
     moves=0
 
-    while(True):
-        if game.game_over:
-            break
-
+    while not game.game_over:
         legal_moves = trainer.get_legal_moves(game)
-
         if not legal_moves:
             break
 
-        if trainer.training_algorithm == 1 or trainer.training_algorithm == 2:
-            inputs = trainer.prepare_inputs1(game)
-        else:
-            #print(game.column_height)
-            inputs = trainer.prepare_inputs2(game)
+        best_mv, best_val = None, -np.inf
+        for mv in legal_moves:
+            sim = copy.deepcopy(game)
+            dx, rot = mv
+            sim.current_piece.x += dx
+            sim.current_piece.rotation = (sim.current_piece.rotation + rot) % len(sim.current_piece.shape)
+            while sim.valid_move(sim.current_piece, 0, 1, 0):
+                sim.current_piece.y += 1
+            sim.lock_piece(sim.current_piece)
+            sim.update_trackers()
 
-        outputs = nn.forward(inputs)
+            if trainer.training_algorithm in (1, 2):
+                inp = trainer.prepare_inputs1(sim)
+            else:
+                inp = trainer.prepare_inputs2(sim)
 
-        sorted_indices = np.argsort(outputs)[::-1]
-        move_index = None
-        for idx in sorted_indices:
-            if idx < len(legal_moves):
-                move_index = idx
-                break
-        if move_index is None:
-            move_index = sorted_indices[0]
+            val = nn.forward(inp)[0]
+            if val > best_val:
+                best_mv, best_val = mv, val
 
-
-        move = legal_moves[move_index]
-
-        game.current_piece.x += move[0]
-
-        game.current_piece.rotation = (game.current_piece.rotation + move[1]) % len(game.current_piece.shape)
-
+        dx, rot = best_mv
+        game.current_piece.x += dx
+        game.current_piece.rotation = (game.current_piece.rotation + rot) % len(game.current_piece.shape)
         while game.valid_move(game.current_piece, 0, 1, 0):
             game.current_piece.y += 1
-
-        game.lock_piece(game.current_piece)  # odradi lock peace metodu.
-
-        #game.render()
+        game.lock_piece(game.current_piece)
         game.update_trackers()
-        #print(game.column_height)
 
-        moves+= 1
+        moves += 1
 
     #game.render()
     if(trainer.fitness_function == 1):

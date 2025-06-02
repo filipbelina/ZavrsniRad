@@ -8,24 +8,9 @@ class AIAgent:
         self.last_move_time = time.time()
 
     def copy_game_state(self, game):
-        """Create a deep copy of the game state"""
         return copy.deepcopy(game)
 
-    def prepare_inputs(self, game, moves):
-        binary_grid = np.array(game.binary_grid)
-
-        top_rows = binary_grid.flatten()
-
-        features = [game.average_height, game.total_height]
-
-        # Add the 5x5 array of the first rotation of the current piece
-        first_rotation = np.array(game.current_piece.shape[0]).flatten()
-        features.extend([game.total_height, game.average_height, game.holes, game.bumpiness, game.totalRowFullness])
-
-        return np.concatenate([top_rows, first_rotation, features])
-
     def get_legal_moves(self, game):
-        """Get all legal moves for the current piece"""
         legal_moves = []
         piece = game.current_piece
         for rotation in range(len(piece.shape)):
@@ -37,40 +22,53 @@ class AIAgent:
                     legal_moves.append((x_offset, rotation))
         return legal_moves
 
-    def select_move(self, outputs, legal_moves):
-        sorted_indices = np.argsort(outputs)[::-1]
-        move_index = None
-        for idx in sorted_indices:
-            if idx < len(legal_moves):
-                move_index = idx
-                break
-        if move_index is None:
-            move_index = sorted_indices[0]
-        return move_index
+    def simulate(self, game, move):
+        g = copy.deepcopy(game)
+        dx, rot = move
+        piece = g.current_piece
+        piece.x += dx
+        piece.rotation = (piece.rotation + rot) % len(piece.shape)
+        while g.valid_move(piece, 0, 1, 0):
+            piece.y += 1
+        g.lock_piece(piece)
+        g.update_trackers()
+        return g
 
-    #def find_best_move(self, game):
-    #    legal_moves = self.get_legal_moves(game)
-    #    if not legal_moves:
-    #        return None
-    #    inputs = self.prepare_inputs(game, legal_moves)
-    #    outputs = self.nn.forward(inputs)
-    #    move_index = self.select_move(outputs, legal_moves)
-    #    return legal_moves[move_index]
+    def prepare_inputs_1(self, game):
+        binary = np.array(game.binary_grid).flatten()
+        first_rot = np.array(game.current_piece.shape[0]).flatten()
+        features = [game.average_height,
+                    game.total_height,
+                    game.holes,
+                    game.bumpiness,
+                    game.totalRowFullness]
+        return np.concatenate([binary, first_rot, features])
+
+    def prepare_inputs_2(self, game):
+        return np.concatenate([game.column_height, np.array([game.current_piece.index])])
+
+    def prepare_inputs(self, game):
+        return (self.prepare_inputs_2 if self.nn.input_size <= 12 else self.prepare_inputs_1)(game)
+
+    def find_best_move(self, game):
+        legal = self.get_legal_moves(game)
+        best_move, best_val = None, -float("inf")
+        for mv in legal:
+            sim = self.simulate(game, mv)
+            inputs = self.prepare_inputs(sim)
+            val = float(self.nn.forward(inputs)[0])
+            if val > best_val:
+                best_move, best_val = mv, val
+        return best_move
 
     def do_best_move(self, game):
-        best_move = self.find_best_move(game)
-        if best_move:
-            x_offset, rotation = best_move
-            piece = game.current_piece
-
-            # Apply the rotation
-            piece.rotation = (piece.rotation + rotation) % len(piece.shape)
-
-            # Apply the horizontal movement
-            piece.x += x_offset
-
-            # Drop the piece
-            while game.valid_move(piece, 0, 1, 0):
-                piece.y += 1
-            time.sleep(0.5)
-            game.lock_piece(piece)
+        mv = self.find_best_move(game)
+        if mv is None:
+            return
+        dx, rot = mv
+        p = game.current_piece
+        p.x += dx
+        p.rotation = (p.rotation + rot) % len(p.shape)
+        while game.valid_move(p, 0, 1, 0):
+            p.y += 1
+        game.lock_piece(p)

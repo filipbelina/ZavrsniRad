@@ -6,6 +6,7 @@ import numpy as np
 from game import Tetris
 from runAiSimulation import run_ai_simulation
 
+counter = 0
 
 def train_multi_move(trainer, start_move=0):
     moves_made = start_move
@@ -48,6 +49,7 @@ def train_multi_move(trainer, start_move=0):
                 break
 
         best_game.render()
+        best_game.print_stats()
         print(best_game.column_height)
 
         trainer.current_game_state = best_game

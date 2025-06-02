@@ -4,7 +4,7 @@ from runAiSimulation import run_ai_simulation
 from Trainer import EvolutionaryTrainer
 from trainerMultiMove import train_multi_move
 
-trainer = EvolutionaryTrainer(400, 50, 0.5, 3, 1)
+trainer = EvolutionaryTrainer(175, 100, 0.5, 2, 1)
 
 
 def run_training():
@@ -23,7 +23,7 @@ def run_training():
 
 def run_simulation():
     print("Starting AI simulation...")
-    run_ai_simulation(trainer)
+    run_ai_simulation()
 
 def exit_program():
     print("Exiting program. Goodbye!")
