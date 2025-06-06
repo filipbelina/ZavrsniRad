@@ -273,7 +273,6 @@ class Tetromino:
 class Tetris:
     def __init__(self, width=10, height=20, seed=1):
         random.seed(seed)
-        np.random.seed(seed)
         self.width = width
         self.height = height
         self.grid = [[0 for _ in range(width)] for _ in range(height)]
@@ -391,7 +390,7 @@ class Tetris:
             if empty_cells <= 2:  # Consider rows with 2 or fewer empty cells
                 empty_cells_reward += (10 - empty_cells) * 2
 
-        return -0.21*self.total_height + 0.76*(10*self.fourCleared+5*self.threeCleared+3*self.twoCleared+self.oneCleared) - 0.36*self.holes - 0.18*self.bumpiness + 0.3*moves + 0.15*empty_cells_reward
+        return 1.06*(10*self.fourCleared+5*self.threeCleared+3*self.twoCleared+self.oneCleared) - 0.36*self.holes - 0.18*self.bumpiness + 0.2*moves + 0.15*empty_cells_reward
 
     def evaluate_fitness3(self, moves):
         # Strongly reward line clears

@@ -57,7 +57,7 @@ def train_multi_move(trainer, start_move=0):
         moves_made += 3
 
     # Save the best NN after training
-    with open('best_nn.pkl', 'wb') as f:
+    with open('175_jedinki_100_generacija.pkl', 'wb') as f:
         pickle.dump(best_nn, f)
 
     run_ai_simulation(best_nn, trainer)

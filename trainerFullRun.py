@@ -68,7 +68,7 @@ def train_full_run(trainer):
 
     print('Training complete, best model saved.')
 
-    run_ai_simulation(trainer)
+    #run_ai_simulation(trainer)
 
 def fullRunEvaluateFitness(trainer, nn):
     game = Tetris(10, 20)

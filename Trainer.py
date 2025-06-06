@@ -10,9 +10,9 @@ class EvolutionaryTrainer:
         self.fitness_function = fitness_function
         self.training_algorithm = training_algorithm
         if self.training_algorithm == 1 or self.training_algorithm == 2:
-            self.population = [NeuralNetwork(230, 120, 80, 1) for _ in range(population_size)]
+            self.population = [NeuralNetwork(234, 120, 80, 1) for _ in range(population_size)]
         else:
-            self.population = [NeuralNetwork(11, 5, 3, 1) for _ in range(population_size)]
+            self.population = [NeuralNetwork(21, 14, 7, 1) for _ in range(population_size)]
         self.current_game_state = None
         self.best_neural_network = None
 
@@ -30,7 +30,7 @@ class EvolutionaryTrainer:
 
         top_rows = binary_grid.flatten()
 
-        features = [game.average_height, game.total_height]
+        features = [game.average_height, game.total_height, game.oneCleared, game.twoCleared, game.threeCleared, game.fourCleared]
 
         first_rotation = np.array(game.current_piece.shape[0]).flatten()
         features.extend([game.holes,game.bumpiness,game.totalRowFullness])
@@ -38,7 +38,9 @@ class EvolutionaryTrainer:
         return np.concatenate([top_rows, first_rotation, features])
 
     def prepare_inputs2(self, game):
-        return np.concatenate([game.column_height, np.array([game.current_piece.index])])
+        features = [game.average_height, game.total_height]
+        features.extend([game.holes, game.bumpiness, game.totalRowFullness, game.score, game.oneCleared, game.twoCleared, game.threeCleared, game.fourCleared])
+        return np.concatenate([game.column_height, np.array([game.current_piece.index]), features])
 
 
     def crossover(self, parent1, parent2):

@@ -25,7 +25,7 @@ def main():
     game = Tetris(WIDTH // GRID_SIZE, HEIGHT // GRID_SIZE)
 
     # Load the trained neural network
-    with open('best_nn.pkl', 'rb') as f:
+    with open('175_jedinki_100_generacija.pkl', 'rb') as f:
         nn = pickle.load(f)
 
     ai_agent = AIAgent(nn)
