@@ -4,111 +4,144 @@ import random
 import numpy as np
 
 from game import Tetris
-from runAiSimulation import run_ai_simulation
 
-counter = 0
 
-def train_multi_move(trainer, start_move=0):
-    moves_made = start_move
+def train_multi_move(trainer):
     trainer.current_game_state = None
+
+    generation_stats = []
+    total_evaluations = 0
+
     overall_best_fitness = float('-inf')
-    best_nn = None
-    no_improvement_generations = 0
+    overall_best_nn = None
 
-    while moves_made < trainer.max_moves:
-        for i in range(10):
-            fitness_scores_and_games = [multi_move_evaluate_fitness_nn(trainer, nn, trainer.current_game_state) for nn in trainer.population]
-            fitness_scores = [score for score, _ in fitness_scores_and_games]
-            games = [game for _, game in fitness_scores_and_games]
-            sorted_population = [nn for _, nn in
-                                 sorted(zip(fitness_scores, trainer.population), key=lambda x: x[0], reverse=True)]
-            # Elitism: Keep the top 10% of the population
-            elite_count = max(1, trainer.population_size // 10)
-            new_population = sorted_population[:elite_count]
-            # Crossover: Create children from the top 50% of the population
-            for _ in range(trainer.population_size - elite_count):
-                parent1, parent2 = random.sample(sorted_population[:trainer.population_size // 2], 2)
-                child = trainer.crossover(parent1, parent2)
-                child.mutate(trainer.mutation_rate)
-                new_population.append(child)
-            trainer.population = new_population
-            current_best_fitness = max(fitness_scores)
-            best_game = games[fitness_scores.index(current_best_fitness)]
+    for generation in range(1000):
+        if total_evaluations >= trainer.evaluations:
+            print(f"Reached {trainer.evaluations} evaluations. Stopping training.")
+            break
+        print(f"Generation {generation}")
 
-            # Update the overall best fitness and NN
-            if current_best_fitness > overall_best_fitness:
-                overall_best_fitness = current_best_fitness
-                best_nn = sorted_population[0]  # Best NN corresponds to the highest fitness
-                no_improvement_generations = 0
-            else:
-                no_improvement_generations += 1
+        fitness_games = [
+            multi_move_evaluate_fitness_nn(trainer, nn, trainer.current_game_state)
+            for nn in trainer.population
+        ]
+        total_evaluations += len(fitness_games)
 
-            if no_improvement_generations >= 500:
-                print("No improvement for 15 generations. Ending training.")
-                moves_made= trainer.max_moves
-                break
+        fitness_scores = [score for score, _ in fitness_games]
+        games = [game for _, game in fitness_games]
+
+        best_idx = int(np.argmax(fitness_scores))
+        best_fitness = fitness_scores[best_idx]
+        best_game = games[best_idx]
+        best_score = best_game.score
 
         best_game.render()
         best_game.print_stats()
         print(best_game.column_height)
 
+        generation_stats.append(
+            f"Generation: {generation + 1}, Fitness: {best_fitness}, Score: {best_score}"
+        )
+
+        if best_fitness > overall_best_fitness:
+            overall_best_fitness = best_fitness
+            overall_best_nn = trainer.population[best_idx]
+
+        if best_score > 150000:
+            print(f"Best neural network reached a score of {best_score}. Stopping training.")
+            break
+
+        sorted_population = [
+            nn for _, nn in
+            sorted(zip(fitness_scores, trainer.population), key=lambda x: x[0], reverse=True)
+        ]
+
+        elite_count = max(1, trainer.population_size // 10)
+        new_population = sorted_population[:elite_count]
+
+        while len(new_population) < trainer.population_size:
+            parent1, parent2 = random.sample(sorted_population[:trainer.population_size // 2], 2)
+            child = trainer.crossover(parent1, parent2)
+            child.mutate(trainer.mutation_rate)
+            new_population.append(child)
+
+        trainer.population = new_population
+
         trainer.current_game_state = best_game
-        print(f'Best Fitness after {moves_made} moves: {current_best_fitness}')
-        moves_made += 3
 
-    # Save the best NN after training
-    with open('175_jedinki_100_generacija.pkl', 'wb') as f:
-        pickle.dump(best_nn, f)
+        if (generation + 1) % 5 == 0:
+            trainer.best_neural_network = sorted_population[0]
+            with open(f"best_per_gen/best_nn_gen_{generation + 1}.pkl", "wb") as f:
+                pickle.dump(trainer.best_neural_network, f)
+            print(f"Best model saved for generation {generation + 1}.")
 
-    run_ai_simulation(best_nn, trainer)
+    trainer.best_neural_network = overall_best_nn or trainer.population[0]
 
-    print('Training complete, best model saved.')
+    with open("best_nn.pkl", "wb") as f:
+        pickle.dump(trainer.best_neural_network, f)
+
+    with open("generation_stats.txt", "w") as f:
+        f.write("\n".join(generation_stats))
+
+    print("Training complete, best model saved.")
+
+def _best_move_by_simulation(trainer, game, nn):
+    legal_moves = trainer.get_legal_moves(game)
+    if not legal_moves:
+        return None
+
+    best_mv, best_val = None, -np.inf
+    for mv in legal_moves:
+        sim = game.clone()
+        dx, rot = mv
+        sim.current_piece.x += dx
+        sim.current_piece.rotation = (sim.current_piece.rotation + rot) % len(sim.current_piece.shape)
+        while sim.valid_move(sim.current_piece, 0, 1, 0):
+            sim.current_piece.y += 1
+        sim.lock_piece(sim.current_piece)
+        sim.update_trackers()
+
+        if trainer.training_algorithm in (1, 2):
+            inputs = trainer.prepare_inputs1(sim)
+        else:
+            inputs = trainer.prepare_inputs2(sim)
+
+        value = nn.forward(inputs)[0]
+        if value > best_val:
+            best_mv, best_val = mv, value
+
+    return best_mv
 
 def multi_move_evaluate_fitness_nn(trainer, nn, game_state=None):
-    if game_state is None:
-        game = Tetris(10, 20)
-    else:
-        game = copy.deepcopy(game_state)
-    moves=0
+    game = copy.deepcopy(game_state) if game_state is not None else Tetris(10, 20)
+    moves_made = 0
+
     for _ in range(3):
         if game.game_over:
-
-            break
-        legal_moves = trainer.get_legal_moves(game)
-        if not legal_moves:
             break
 
-        if trainer.training_algorithm == 1 or trainer.training_algorithm == 2:
-            inputs = trainer.prepare_inputs1(game)
-        else:
-            inputs = trainer.prepare_inputs2(game)
+        move = _best_move_by_simulation(trainer, game, nn)
+        if move is None:
+            break
 
-        outputs = nn.forward(inputs)
-        sorted_indices = np.argsort(outputs)[::-1]
-        move_index = None
-        for idx in sorted_indices:
-            if idx < len(legal_moves):
-                move_index = idx
-                break
-        if move_index is None:
-            move_index = sorted_indices[0]
-        move = legal_moves[move_index]
-        game.current_piece.x += move[0]
-        game.current_piece.rotation = (game.current_piece.rotation + move[1]) % len(game.current_piece.shape)
+        dx, rot = move
+        game.current_piece.x += dx
+        game.current_piece.rotation = (game.current_piece.rotation + rot) % len(game.current_piece.shape)
         while game.valid_move(game.current_piece, 0, 1, 0):
             game.current_piece.y += 1
-        game.lock_piece(game.current_piece)  # odradi lock peace metodu.
+        game.lock_piece(game.current_piece)
         game.update_trackers()
-        moves += 1
-
-    if game.game_over:
-        run_ai_simulation(nn, trainer)
+        moves_made += 3
 
     if trainer.fitness_function == 1:
-        return game.evaluate_fitness1(moves), game
+        fitness = game.evaluate_fitness1(moves_made)
     elif trainer.fitness_function == 2:
-        return game.evaluate_fitness2(moves), game
+        fitness = game.evaluate_fitness2(moves_made)
     elif trainer.fitness_function == 3:
-        return game.evaluate_fitness3(moves), game
+        fitness = game.evaluate_fitness3(moves_made)
+    elif trainer.fitness_function == 4:
+        fitness = game.evaluate_fitness4(moves_made)
     else:
-        raise ValueError("Invalid training algorithm specified.")
+        raise ValueError("Invalid fitness function selected.")
+
+    return fitness, game

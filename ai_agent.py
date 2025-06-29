@@ -1,14 +1,9 @@
-import time
 import copy
 import numpy as np
 
 class AIAgent:
     def __init__(self, nn):
         self.nn = nn
-        self.last_move_time = time.time()
-
-    def copy_game_state(self, game):
-        return copy.deepcopy(game)
 
     def get_legal_moves(self, game):
         legal_moves = []
@@ -23,7 +18,7 @@ class AIAgent:
         return legal_moves
 
     def simulate(self, game, move):
-        g = copy.deepcopy(game)
+        g = game.clone()
         dx, rot = move
         piece = g.current_piece
         piece.x += dx
@@ -35,14 +30,17 @@ class AIAgent:
         return g
 
     def prepare_inputs_1(self, game):
-        binary = np.array(game.binary_grid).flatten()
-        first_rot = np.array(game.current_piece.shape[0]).flatten()
-        features = [game.average_height,
-                    game.total_height,
-                    game.holes,
-                    game.bumpiness,
-                    game.totalRowFullness]
-        return np.concatenate([binary, first_rot, features])
+        binary_grid = np.array(game.binary_grid)
+
+        top_rows = binary_grid.flatten()
+
+        features = [game.average_height, game.total_height, game.oneCleared, game.twoCleared, game.threeCleared,
+                    game.fourCleared]
+
+        first_rotation = np.array(game.current_piece.shape[0]).flatten()
+        features.extend([game.holes, game.bumpiness, game.totalRowFullness])
+
+        return np.concatenate([top_rows, first_rotation, features])
 
     def prepare_inputs_2(self, game):
         return np.concatenate([game.column_height, np.array([game.current_piece.index])])
@@ -60,15 +58,3 @@ class AIAgent:
             if val > best_val:
                 best_move, best_val = mv, val
         return best_move
-
-    def do_best_move(self, game):
-        mv = self.find_best_move(game)
-        if mv is None:
-            return
-        dx, rot = mv
-        p = game.current_piece
-        p.x += dx
-        p.rotation = (p.rotation + rot) % len(p.shape)
-        while game.valid_move(p, 0, 1, 0):
-            p.y += 1
-        game.lock_piece(p)

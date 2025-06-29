@@ -1,21 +1,24 @@
-import copy
 import pickle
 import random
 import numpy as np
 
 from game import Tetris
-from runAiSimulation import run_ai_simulation
 
 
 def train_full_run(trainer):
 
     trainer.current_game_state = None
     generation_stats = []
+    total_evaluations = 0
 
-    for i in range(trainer.generations):
+    for i in range(1000):
+        if total_evaluations >= trainer.evaluations:
+            print("Reached evaluation limit. Stopping training.")
+            break
         print("Generation {}".format(i))
 
         fitness_scores_and_games = [fullRunEvaluateFitness(trainer, nn) for nn in trainer.population]
+        total_evaluations += len(fitness_scores_and_games)
 
         fitness_scores = [score for score, _ in fitness_scores_and_games]
         games = [game for _, game in fitness_scores_and_games]
@@ -30,12 +33,10 @@ def train_full_run(trainer):
         sorted_population = [nn for _, nn in
                              sorted(zip(fitness_scores, trainer.population), key=lambda x: x[0], reverse=True)]
 
-        # Elitism: Keep the top 10% of the population
         elite_count = max(1, trainer.population_size // 10)
 
         new_population = sorted_population[:elite_count]
 
-        # Crossover: Create children from the top 50% of the population
         for _ in range(trainer.population_size - elite_count):
             parent1, parent2 = random.sample(sorted_population[:trainer.population_size // 2], 2)
 
@@ -47,15 +48,19 @@ def train_full_run(trainer):
 
         trainer.population = new_population
 
-        if i % 2 == 0:
+        if (i+1) % 5 == 0:
             trainer.best_neural_network = trainer.population[0]
-            with open(f'best_per_gen/best_nn_gen_{i}.pkl', 'wb') as f:
+            with open(f'best_per_gen/best_nn_gen_{i+1}.pkl', 'wb') as f:
                 pickle.dump(trainer.best_neural_network, f)
-            print(f'Best model saved for generation {i}.')
+            print(f'Best model saved for generation {i+1}.')
 
         best_fitness = fitness_scores[best_game_index]
         best_score = best_game.score
-        generation_stats.append(f"Generation: {i}, Fitness: {best_fitness}, Score: {best_score}")
+        generation_stats.append(f"Generation: {i+1}, Fitness: {best_fitness}, Score: {best_score}")
+
+        if best_game.score > 150000:
+            print(f"Best neural network reached a score of {best_game.score}. Stopping training.")
+            break
 
     trainer.best_neural_network = trainer.population[0]
 
@@ -68,8 +73,6 @@ def train_full_run(trainer):
 
     print('Training complete, best model saved.')
 
-    #run_ai_simulation(trainer)
-
 def fullRunEvaluateFitness(trainer, nn):
     game = Tetris(10, 20)
     moves=0
@@ -81,7 +84,7 @@ def fullRunEvaluateFitness(trainer, nn):
 
         best_mv, best_val = None, -np.inf
         for mv in legal_moves:
-            sim = copy.deepcopy(game)
+            sim = game.clone()
             dx, rot = mv
             sim.current_piece.x += dx
             sim.current_piece.rotation = (sim.current_piece.rotation + rot) % len(sim.current_piece.shape)
@@ -109,12 +112,13 @@ def fullRunEvaluateFitness(trainer, nn):
 
         moves += 1
 
-    #game.render()
     if(trainer.fitness_function == 1):
         return game.evaluate_fitness1(moves), game
     elif(trainer.fitness_function == 2):
         return game.evaluate_fitness2(moves), game
     elif(trainer.fitness_function == 3):
         return game.evaluate_fitness3(moves), game
+    elif(trainer.fitness_function == 4):
+        return game.evaluate_fitness4(moves), game
     else:
         raise ValueError("Invalid fitness function selected.")

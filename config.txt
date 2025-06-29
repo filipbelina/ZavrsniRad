@@ -1,0 +1,8 @@
+population_size=100
+generations=50
+mutation_rate=0.3
+fitness_function=4
+training_algorithm=1
+evaluations=5000
+neural_network=neural_networks/final_model_2.pkl
+seed=1

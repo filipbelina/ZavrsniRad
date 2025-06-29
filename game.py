@@ -1,16 +1,11 @@
 import random
-import sys
-from ai_agent import AIAgent
 import pygame
 import numpy as np
+import copy
 
-pygame.init()
-
-# Screen dimensions
 WIDTH, HEIGHT = 400, 800
 GRID_SIZE = 40
 
-# Colors
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 RED = (255, 0, 0)
@@ -23,10 +18,8 @@ PURPLE = (128, 0, 128)
 
 COLORS = [RED, BLUE, GREEN, YELLOW, CYAN, ORANGE, PURPLE]
 
-# Tetromino shapes
 SHAPES = [
     [
-        # I- shape
         [
             [0,0,1,0,0],
             [0,0,1,0,0],
@@ -57,7 +50,6 @@ SHAPES = [
         ],
     ],
     [
-        # T- shape
         [
             [0,0,0,0,0],
             [0,0,0,0,0],
@@ -88,7 +80,6 @@ SHAPES = [
         ]
     ],
     [
-        # Zreverse- shape
         [
             [0,0,1,1,0],
             [0,1,1,0,0],
@@ -119,7 +110,6 @@ SHAPES = [
         ]
     ],
     [
-        # Z- shape
         [
             [0,0,0,0,0],
             [0,1,1,0,0],
@@ -147,7 +137,6 @@ SHAPES = [
             [0,0,0,0,0]]
     ],
     [
-        # L- shape
         [
             [0,0,0,0,0],
             [0,0,1,0,0],
@@ -178,7 +167,6 @@ SHAPES = [
         ]
     ],
     [
-        # Lreverse- shape
         [
             [0,0,0,0,0],
             [0,0,1,0,0],
@@ -209,7 +197,6 @@ SHAPES = [
         ]
     ],
     [
-        # Cube - shape
         [
             [0,0,0,0,0],
             [0,0,0,0,0],
@@ -237,7 +224,6 @@ SHAPES = [
         ]
     ]
 ]
-
 
 class Tetromino:
     def __init__(self, x, y, shape):
@@ -300,6 +286,34 @@ class Tetris:
         self.bumpiness = 0
         self.variance = 0
 
+    def clone(self):
+        new_game = Tetris(self.width, self.height)
+
+        new_game.grid = [row[:] for row in self.grid]
+        new_game.binary_grid = [row[:] for row in self.binary_grid]
+
+        new_game.current_piece = copy.deepcopy(self.current_piece)
+
+        new_game.tetromino_bag = copy.deepcopy(self.tetromino_bag)
+        new_game.column_height = self.column_height[:]
+        new_game.score = self.score
+        new_game.total_height = self.total_height
+        new_game.average_height = self.average_height
+        new_game.holes = self.holes
+        new_game.fitness = self.fitness
+        new_game.oneCleared = self.oneCleared
+        new_game.twoCleared = self.twoCleared
+        new_game.threeCleared = self.threeCleared
+        new_game.fourCleared = self.fourCleared
+        new_game.totalRowFullness = self.totalRowFullness
+        new_game.cached_total_height = self.cached_total_height
+        new_game.cached_average_height = self.cached_average_height
+        new_game.cached_holes = self.cached_holes
+        new_game.bumpiness = self.bumpiness
+        new_game.variance = self.variance
+        new_game.game_over = self.game_over
+
+        return new_game
 
     def calculate_bumpiness(self):
         heights = [0] * self.width
@@ -379,7 +393,7 @@ class Tetris:
         return (10*self.fourCleared+
                 5*self.threeCleared+
                 4*self.twoCleared+
-                10*self.oneCleared-
+                1*self.oneCleared-
                 10*self.total_height-
                 30*self.holes)
 
@@ -387,26 +401,32 @@ class Tetris:
         empty_cells_reward = 0
         for row in self.grid:
             empty_cells = row.count(0)
-            if empty_cells <= 2:  # Consider rows with 2 or fewer empty cells
+            if empty_cells <= 2:
                 empty_cells_reward += (10 - empty_cells) * 2
 
-        return 1.06*(10*self.fourCleared+5*self.threeCleared+3*self.twoCleared+self.oneCleared) - 0.36*self.holes - 0.18*self.bumpiness + 0.2*moves + 0.15*empty_cells_reward
+        return -0.51 * self.total_height + 0.76 * (4 * self.fourCleared + 3 * self.threeCleared + 2 * self.twoCleared + self.oneCleared) - 0.36 * self.holes - 0.18 * self.bumpiness + 0.5 * moves - 0.3 * self.variance + empty_cells_reward
+
+    def evaluate_fitness4(self, moves):
+        empty_cells_reward = 0
+        for row in self.grid:
+            empty_cells = row.count(0)
+            if empty_cells <= 2:
+                empty_cells_reward += (10 - empty_cells) * 2
+
+        return 1.06*(10*self.fourCleared+5*self.threeCleared+3*self.twoCleared+self.oneCleared) - 0.36*self.holes + 0.2*moves
 
     def evaluate_fitness3(self, moves):
-        # Strongly reward line clears
 
         def height_penalty(height):
             if height <= 5:
-                return height * 20  # Penalty of 20 per height unit up to 5
+                return height * 20
             elif height <= 10:
-                return 100 + (height - 5) * 80  # Additional penalty of 80 per height unit from 6 to 10
+                return 100 + (height - 5) * 80
             else:
-                return 500 + (height - 10) * 200  # Additional penalty of 200 per height unit above 10
+                return 500 + (height - 10) * 200
 
-        # Calculate the tallest peak
         tallest_peak = max(self.height - row for row in range(self.height) if any(self.grid[row]))
 
-        # Calculate the height penalty
         height_penalty_value = height_penalty(tallest_peak)
 
         line_clear_reward = (self.oneCleared * 100) + \
@@ -414,15 +434,12 @@ class Tetris:
                             (self.threeCleared * 500) + \
                             (self.fourCleared * 800)
 
-        # Reward survival (each move made)
         survival_reward = moves * 50
 
-        # Penalize height, holes, and bumpiness moderately
         penalty = (self.total_height * 0.5) + \
                   (self.holes * 10) + \
                   (self.bumpiness * 5)
 
-        # Heavily penalize early game overs
         game_over_penalty = 0
         if self.game_over:
             game_over_penalty = 1000 - survival_reward
@@ -433,7 +450,6 @@ class Tetris:
             if empty_cells <= 2:
                 empty_cells_reward += (10 - empty_cells) * 100
 
-                # Final fitness calculation
         fitness = line_clear_reward + survival_reward - penalty - game_over_penalty - height_penalty_value - empty_cells_reward
         return fitness
 
@@ -461,9 +477,7 @@ class Tetris:
         self.bumpiness = self.calculate_bumpiness()
         self.variance = self.calculate_row_variance()
         self.update_column_heights()
-        #self.fitness = self.evaluate_fitness()
 
-        # Reset cache
         self.cached_total_height = None
         self.cached_average_height = None
         self.cached_holes = None
@@ -487,16 +501,10 @@ class Tetris:
         print(f"Current Piece: {self.current_piece.shape}")
         print("------------------------------")
 
-    def trackers_changed(self):
-        return (self.total_height != self.previous_total_height or
-                self.average_height != self.previous_average_height or
-                self.holes != self.previous_holes)
-
     def generate_tetromino_bag(self):
         bag = [Tetromino(0, 0, shape) for shape in SHAPES for _ in range(2)]
         random.shuffle(bag)
         return bag
-
 
     def new_piece(self):
         if not self.tetromino_bag:
@@ -520,31 +528,7 @@ class Tetris:
                         return False
         return True
 
-    def clear_lines(self):
-        """Removes full lines and shifts everything down"""
-        lines_cleared = 0
-        new_grid = [row for row in self.grid if any(cell == 0 for cell in row)]
-        new_binary_grid = [row for row in self.binary_grid if any(cell == 0 for cell in row)]
-
-        # Calculate number of lines cleared
-        lines_cleared = self.height - len(new_grid)
-        lines_cleared_binary = self.height - len(new_binary_grid)
-        if(lines_cleared > 0):
-            print(f"Lines cleared: {lines_cleared}")
-
-        # Add new empty rows at the top to keep grid size consistent
-        while len(new_grid) < self.height:
-            new_grid.insert(0, [0] * self.width)
-        while len(new_binary_grid) < self.height:
-            new_binary_grid.insert(0, [0] * self.width)
-        self.grid = new_grid
-        self.binary_grid = new_binary_grid
-        #if(lines_cleared_binary > 0):
-            #print(f"Lines cleared: {lines_cleared}")
-        return lines_cleared_binary
-
     def lock_piece(self, piece):
-        """Locks the current piece in place and spawns a new one"""
         for i in range(5):
             for j in range(5):
                 if piece.shape[piece.rotation][i][j] == 1:
@@ -554,7 +538,7 @@ class Tetris:
                         self.grid[grid_y][grid_x] = piece.color
                         self.binary_grid[grid_y][grid_x] = 1
 
-        lines_cleared = self.clear_lines()  # Clear lines and get the number of lines cleared
+        lines_cleared = self.clear_lines()
 
         if lines_cleared == 1:
             self.score += 100
@@ -569,26 +553,21 @@ class Tetris:
             self.score += 1000
             self.fourCleared += 1
 
-        # Generate a new piece
         self.current_piece = self.new_piece()
 
-        # Check if the game is over
         if not self.valid_move(self.current_piece, 0, 0, 0):
             self.game_over = True
 
         return lines_cleared
 
     def clear_lines(self):
-        """Removes full lines and shifts everything down"""
         lines_cleared = 0
         new_grid = [row for row in self.grid if any(cell == 0 for cell in row)]
         new_binary_grid = [row for row in self.binary_grid if any(cell == 0 for cell in row)]
 
-        # Calculate number of lines cleared
         lines_cleared = self.height - len(new_grid)
         lines_cleared_binary = self.height - len(new_binary_grid)
 
-        # Add new empty rows at the top to keep grid size consistent
         while len(new_grid) < self.height:
             new_grid.insert(0, [0] * self.width)
         while len(new_binary_grid) < self.height:
