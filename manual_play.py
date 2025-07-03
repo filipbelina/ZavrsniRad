@@ -1,5 +1,6 @@
+import random
+
 import pygame
-import sys
 from game import Tetris
 from renderer import draw_score, draw_game_over
 
@@ -11,7 +12,7 @@ def manual_play():
     pygame.init()
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
     pygame.display.set_caption("Tetris")
-    game = Tetris(WIDTH // GRID_SIZE, HEIGHT // GRID_SIZE)
+    game = Tetris(WIDTH // GRID_SIZE, HEIGHT // GRID_SIZE, random.random())
     clock = pygame.time.Clock()
 
     fall_time = 0
